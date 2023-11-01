@@ -1,12 +1,25 @@
 const express = require('express');
 const app = express();
 const port = 3000;
+const mysql = require('mysql2');
 
-// Middleware para permitir o uso de JSON
+// Configuração da conexão com o banco de dados
+const connection = mysql.createConnection({
+  host: '172.22.0.2',
+  user: 'root',
+  password: 'root',
+  database: 'books'
+});
+
+connection.connect((err) => {
+  if (err) {
+    console.error('Erro ao conectar ao banco de dados:', err);
+    process.exit(1);
+  }
+  console.log('Conexão ao banco de dados MySQL estabelecida com sucesso');
+});
+
 app.use(express.json());
-
-// Banco de dados simulado (em memória)
-const books = [];
 
 // Middleware de log para registrar solicitações
 app.use((req, res, next) => {
@@ -14,49 +27,62 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rotas para o CRUD de livros
-
 // Rota para listar todos os livros
 app.get('/books', (req, res) => {
-  console.log('Endpoint de listagem de livros acessado');
-  res.json(books);
+  connection.query('SELECT * FROM livros', (error, results, fields) => {
+    if (error) {
+      console.error('Erro ao buscar livros:', error);
+      res.status(500).json({ error: 'Erro ao buscar livros' });
+      return;
+    }
+    res.json(results);
+  });
 });
 
 // Rota para criar um novo livro
 app.post('/books', (req, res) => {
   const { title, author } = req.body;
-  const id = Date.now().toString(); // Gere um ID único (não recomendado para produção)
-  const newBook = { id, title, author };
-  books.push(newBook);
-  console.log(`Novo livro criado: ${newBook.title} por ${newBook.author}`);
-  res.status(201).json(newBook);
+  connection.query('INSERT INTO livros (title, author) VALUES (?, ?)', [title, author], (error, results, fields) => {
+    if (error) {
+      console.error('Erro ao criar um livro:', error);
+      res.status(500).json({ error: 'Erro ao criar um livro' });
+      return;
+    }
+    res.status(201).json({ message: 'Livro criado com sucesso' });
+  });
 });
 
 // Rota para atualizar um livro por ID
 app.put('/books/:id', (req, res) => {
   const id = req.params.id;
-  const bookIndex = books.findIndex((b) => b.id === id);
-  if (bookIndex !== -1) {
-    const { title, author } = req.body;
-    books[bookIndex] = { id, title, author };
-    console.log(`Livro atualizado: ${title} por ${author}`);
-    res.json(books[bookIndex]);
-  } else {
-    res.status(404).json({ message: 'Livro não encontrado' });
-  }
+  const { title, author } = req.body;
+  connection.query('UPDATE livros SET title = ?, author = ? WHERE id = ?', [title, author, id], (error, results, fields) => {
+    if (error) {
+      console.error('Erro ao atualizar o livro:', error);
+      res.status(500).json({ error: 'Erro ao atualizar o livro' });
+      return;
+    }
+    res.json({ message: 'Livro atualizado com sucesso' });
+  });
 });
 
 // Rota para excluir um livro por ID
 app.delete('/books/:id', (req, res) => {
   const id = req.params.id;
-  const bookIndex = books.findIndex((b) => b.id === id);
-  if (bookIndex !== -1) {
-    const deletedBook = books.splice(bookIndex, 1)[0];
-    console.log(`Livro excluído: ${deletedBook.title} por ${deletedBook.author}`);
+  connection.query('DELETE FROM livros WHERE id = ?', [id], (error, results, fields) => {
+    if (error) {
+      console.error('Erro ao excluir o livro:', error);
+      res.status(500).json({ error: 'Erro ao excluir o livro' });
+      return;
+    }
     res.json({ message: 'Livro excluído com sucesso' });
-  } else {
-    res.status(404).json({ message: 'Livro não encontrado' });
-  }
+  });
+});
+
+// Encerramento da conexão com o banco de dados no encerramento da aplicação
+process.on('exit', () => {
+  connection.end();
+  console.log('Conexão com o banco de dados encerrada');
 });
 
 // Inicie o servidor
