@@ -2,9 +2,15 @@
 Aula backend NodeJS - API books
 
 Executar na sequência para rodar aplicação:
+LOCAL:
 npm install express
 npm install mysql
 npm install mysql2
+npm install pg-promise
+node app.js
+
+RENDER: 
+npm install express && npm install mysql && npm install mysql && npm install pg-promise
 node app.js
 
 Criar Banco com:

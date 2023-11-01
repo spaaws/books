@@ -1,23 +1,23 @@
 const express = require('express');
 const app = express();
 const port = 3000;
-const mysql = require('mysql2');
+const pgp = require('pg-promise')();
 
-// Configuração da conexão com o banco de dados
-const connection = mysql.createConnection({
-  host: '172.22.0.2',
-  user: 'root',
-  password: 'root',
-  database: 'books'
+// Configuração da conexão com o banco de dados PostgreSQL
+const db = pgp({
+  connectionString: 'postgres://books_api_kwsb_user:5eODoIYA0L5RCQ1RS3Qti9HXuZtd3vmb@dpg-cl11pdgp2gis73bdrl0g-a/books_api_kwsb',
 });
 
-connection.connect((err) => {
-  if (err) {
-    console.error('Erro ao conectar ao banco de dados:', err);
+// Conexão ao banco de dados PostgreSQL
+db.connect()
+  .then(obj => {
+    console.log('Conexão ao banco de dados PostgreSQL estabelecida com sucesso');
+    obj.done(); // Liberar a conexão
+  })
+  .catch(error => {
+    console.error('Erro ao conectar ao banco de dados PostgreSQL:', error);
     process.exit(1);
-  }
-  console.log('Conexão ao banco de dados MySQL estabelecida com sucesso');
-});
+  });
 
 app.use(express.json());
 
@@ -28,61 +28,51 @@ app.use((req, res, next) => {
 });
 
 // Rota para listar todos os livros
-app.get('/books', (req, res) => {
-  connection.query('SELECT * FROM livros', (error, results, fields) => {
-    if (error) {
-      console.error('Erro ao buscar livros:', error);
-      res.status(500).json({ error: 'Erro ao buscar livros' });
-      return;
-    }
-    res.json(results);
-  });
+app.get('/books', async (req, res) => {
+  try {
+    const books = await db.any('SELECT * FROM livros');
+    res.json(books);
+  } catch (error) {
+    console.error('Erro ao buscar livros:', error);
+    res.status(500).json({ error: 'Erro ao buscar livros' });
+  }
 });
 
 // Rota para criar um novo livro
-app.post('/books', (req, res) => {
+app.post('/books', async (req, res) => {
   const { title, author } = req.body;
-  connection.query('INSERT INTO livros (title, author) VALUES (?, ?)', [title, author], (error, results, fields) => {
-    if (error) {
-      console.error('Erro ao criar um livro:', error);
-      res.status(500).json({ error: 'Erro ao criar um livro' });
-      return;
-    }
+  try {
+    await db.none('INSERT INTO livros (title, author) VALUES ($1, $2)', [title, author]);
     res.status(201).json({ message: 'Livro criado com sucesso' });
-  });
+  } catch (error) {
+    console.error('Erro ao criar um livro:', error);
+    res.status(500).json({ error: 'Erro ao criar um livro' });
+  }
 });
 
 // Rota para atualizar um livro por ID
-app.put('/books/:id', (req, res) => {
+app.put('/books/:id', async (req, res) => {
   const id = req.params.id;
   const { title, author } = req.body;
-  connection.query('UPDATE livros SET title = ?, author = ? WHERE id = ?', [title, author, id], (error, results, fields) => {
-    if (error) {
-      console.error('Erro ao atualizar o livro:', error);
-      res.status(500).json({ error: 'Erro ao atualizar o livro' });
-      return;
-    }
+  try {
+    await db.none('UPDATE livros SET title = $1, author = $2 WHERE id = $3', [title, author, id]);
     res.json({ message: 'Livro atualizado com sucesso' });
-  });
+  } catch (error) {
+    console.error('Erro ao atualizar o livro:', error);
+    res.status(500).json({ error: 'Erro ao atualizar o livro' });
+  }
 });
 
 // Rota para excluir um livro por ID
-app.delete('/books/:id', (req, res) => {
+app.delete('/books/:id', async (req, res) => {
   const id = req.params.id;
-  connection.query('DELETE FROM livros WHERE id = ?', [id], (error, results, fields) => {
-    if (error) {
-      console.error('Erro ao excluir o livro:', error);
-      res.status(500).json({ error: 'Erro ao excluir o livro' });
-      return;
-    }
+  try {
+    await db.none('DELETE FROM livros WHERE id = $1', [id]);
     res.json({ message: 'Livro excluído com sucesso' });
-  });
-});
-
-// Encerramento da conexão com o banco de dados no encerramento da aplicação
-process.on('exit', () => {
-  connection.end();
-  console.log('Conexão com o banco de dados encerrada');
+  } catch (error) {
+    console.error('Erro ao excluir o livro:', error);
+    res.status(500).json({ error: 'Erro ao excluir o livro' });
+  }
 });
 
 // Inicie o servidor
